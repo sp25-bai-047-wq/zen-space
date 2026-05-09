@@ -1,150 +1,69 @@
-package ProjectPhase1;
+package com.example.backup;
 
 import java.io.*;
-import java.util.*;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class MoodTracker {
 
     private final String username;
-    private final boolean isAdmin;
-    private final List<String> moods;
+    private final String fileName;
 
-    public MoodTracker(String username, boolean isAdmin) {
-        this.username = username;
-        this.isAdmin = isAdmin;
-        moods = new ArrayList<>();
-        if (!isAdmin) loadMoods(); // Admin doesn't load a single file
-    }
     public MoodTracker(String username) {
-        this(username, false); // default isAdmin to false
+        this.username = username;
+        this.fileName = "moods_" + username + ".txt";
     }
 
+    public boolean hasLoggedToday() {
+        LocalDate today = LocalDate.now();
+        File file = new File(fileName);
+        if (!file.exists()) return false;
 
-    private String getFileName(String user) {
-        return "moods_" + user + ".txt";
-    }
-
-    // Load moods for a normal user
-    private void loadMoods() {
-        File file = new File(getFileName(username));
-        if (!file.exists()) return;
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
-            while ((line = br.readLine()) != null) moods.add(line);
-        } catch (IOException e) {
-            Output.println("Error loading moods: " + e.getMessage());
-        }
-    }
-
-    // Save moods for a normal user
-    private void saveMoods() {
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(getFileName(username)))) {
-            for (String mood : moods) bw.write(mood + "\n");
-        } catch (IOException e) {
-            Output.println("Error saving moods: " + e.getMessage());
-        }
-    }
-
-    // User adds a mood
-    public void addMood(String mood) {
-        if (isAdmin) {
-            Output.println("Admin cannot add moods to a personal list.");
-            return;
-        }
-        if (mood == null || mood.trim().isEmpty()) {
-            Output.println("Mood cannot be empty.");
-            return;
-        }
-        moods.add(mood);
-        saveMoods();
-        Output.println("Mood added successfully!");
-    }
-
-    // User views their moods
-    public void viewMoods() {
-        if (isAdmin) {
-            Output.println("Admin cannot view a single user's moods this way.");
-            return;
-        }
-        Output.println("\n=== Your Recorded Moods ===");
-        if (moods.isEmpty()) {
-            Output.println("No moods recorded yet.");
-            return;
-        }
-        for (int i = 0; i < moods.size(); i++) {
-            Output.println((i + 1) + ". " + moods.get(i));
-        }
-    }
-
-    // Admin views all users' moods
-    public void viewAllMoods() {
-        if (!isAdmin) {
-            Output.println("You are not an admin!");
-            return;
-        }
-
-        File folder = new File(".");
-        File[] files = folder.listFiles((dir, name) -> name.startsWith("moods_") && name.endsWith(".txt"));
-
-        if (files == null || files.length == 0) {
-            Output.println("No mood records found.");
-            return;
-        }
-
-        for (File file : files) {
-            String user = file.getName().replace("moods_", "").replace(".txt", "");
-            Output.println("\n--- Moods of user: " + user + " ---");
-            try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-                String line;
-                int count = 1;
-                while ((line = br.readLine()) != null) {
-                    Output.println(count + ". " + line);
-                    count++;
+            while ((line = br.readLine()) != null) {
+                if (line.startsWith(today.toString() + "::")) {
+                    return true;
                 }
-                if (count == 1) Output.println("No moods recorded.");
-            } catch (IOException e) {
-                Output.println("Error reading moods for " + user + ": " + e.getMessage());
             }
+        } catch (IOException e) {
+            System.err.println("Error reading mood file: " + e.getMessage());
         }
+        return false;
     }
 
-    // Admin deletes a mood for any user
-    public void deleteMoodForUser(String targetUser, int moodNumber) {
-        if (!isAdmin) {
-            Output.println("You are not an admin!");
-            return;
-        }
+    public List<String> getTodaysMoods() {
+        LocalDate today = LocalDate.now();
+        File file = new File(fileName);
+        if (!file.exists()) return List.of();
 
-        File file = new File(getFileName(targetUser));
-        if (!file.exists()) {
-            Output.println("No mood file found for user: " + targetUser);
-            return;
-        }
-
-        List<String> userMoods = new ArrayList<>();
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
-            while ((line = br.readLine()) != null) userMoods.add(line);
+            while ((line = br.readLine()) != null) {
+                if (line.startsWith(today.toString() + "::")) {
+                    String moodsPart = line.substring(line.indexOf("::") + 2);
+                    return List.of(moodsPart.split(","));
+                }
+            }
         } catch (IOException e) {
-            Output.println("Error reading moods: " + e.getMessage());
-            return;
+            System.err.println("Error reading mood file for retrieval: " + e.getMessage());
         }
+        return List.of();
+    }
 
-        int index = moodNumber - 1;
-        if (index < 0 || index >= userMoods.size()) {
-            Output.println("Invalid mood number.");
-            return;
-        }
+    public boolean saveMood(List<String> moods) {
+        if (moods.isEmpty()) return false;
 
-        String removed = userMoods.remove(index);
+        LocalDate today = LocalDate.now();
+        String entry = today.toString() + "::" + moods.stream().collect(Collectors.joining(","));
 
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(file))) {
-            for (String mood : userMoods) bw.write(mood + "\n");
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(fileName, true))) {
+            bw.write(entry + "\n");
+            return true;
         } catch (IOException e) {
-            Output.println("Error saving moods: " + e.getMessage());
-            return;
+            System.err.println("Error saving mood entry: " + e.getMessage());
+            return false;
         }
-
-        Output.println("Removed mood for " + targetUser + ": " + removed);
     }
 }

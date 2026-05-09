@@ -1,4 +1,4 @@
-package ProjectPhase1;
+package com.example.backup;
 
 import java.io.*;
 import java.util.*;
@@ -16,12 +16,8 @@ public class ToDoListManager {
         loadTasks();
     }
 
-    // File name for each user
-    private String getFileName() {
-        return "todo_" + username + ".txt";
-    }
+    private String getFileName() { return "todo_" + username + ".txt"; }
 
-    // Load tasks from user's file
     private void loadTasks() {
         File file = new File(getFileName());
         if (!file.exists()) return;
@@ -35,109 +31,86 @@ public class ToDoListManager {
                 }
             }
         } catch (IOException e) {
-            Output.println("Error loading tasks for user " + username + ": " + e.getMessage());
+            System.err.println("Error loading tasks for user " + username + ": " + e.getMessage());
         }
     }
 
-    // Save tasks to user's file
-    private void saveTasks() {
+    private boolean saveTasks() {
         try (BufferedWriter bw = new BufferedWriter(new FileWriter(getFileName()))) {
             for (int i = 0; i < tasks.size(); i++) {
                 bw.write(tasks.get(i) + "::" + (isComplete.get(i) ? "1" : "0") + "\n");
             }
+            return true;
         } catch (IOException e) {
-            Output.println("Error saving tasks for user " + username + ": " + e.getMessage());
-        }
-    }
-
-    // Add task
-    public boolean addTask(String taskDescription) {
-        if (taskDescription == null || taskDescription.trim().isEmpty()) {
-            Output.println("Task cannot be empty.");
+            System.err.println("Error saving tasks for user " + username + ": " + e.getMessage());
             return false;
         }
-        tasks.add(taskDescription.trim());
-        isComplete.add(false);
-        saveTasks();
-        Output.println("Task added: " + taskDescription);
-        return true;
     }
 
-    // Remove task
-    public boolean removeTask(int taskNumber) {
+    public String addTask(String taskDescription) {
+        if (taskDescription == null || taskDescription.trim().isEmpty()) return "Task cannot be empty.";
+
+        tasks.add(taskDescription.trim());
+        isComplete.add(false);
+        if (saveTasks()) {
+            return "Task added: " + taskDescription;
+        } else {
+            tasks.remove(tasks.size() - 1);
+            isComplete.remove(isComplete.size() - 1);
+            return "Error saving task to file.";
+        }
+    }
+
+    public String removeTask(int taskNumber) {
         int index = taskNumber - 1;
         if (index >= 0 && index < tasks.size()) {
             String removedTask = tasks.remove(index);
             isComplete.remove(index);
-            saveTasks();
-            Output.println("Task removed: " + removedTask);
-            return true;
-        } else {
-            Output.println("Invalid task number.");
-            return false;
-        }
-    }
-
-    // Mark task complete
-    public boolean markComplete(int taskNumber) {
-        int index = taskNumber - 1;
-        if (index >= 0 && index < tasks.size()) {
-            if (isComplete.get(index)) {
-                Output.println("Task '" + tasks.get(index) + "' is already complete.");
-                return false;
+            if (saveTasks()) {
+                return "Task removed: " + removedTask;
             } else {
-                isComplete.set(index, true);
-                saveTasks();
-                Output.println("Task marked complete: " + tasks.get(index));
-                return true;
+                return "Task removed in memory, but failed to update file.";
             }
         } else {
-            Output.println("Invalid task number.");
-            return false;
+            return "Invalid task number.";
         }
     }
 
-    // View user's tasks
-    public void viewTasks() {
-        Output.println("\n=== " + username + "'s To-Do List (" + tasks.size() + ") ===");
-        if (tasks.isEmpty()) {
-            Output.println("No tasks recorded yet.");
-            return;
-        }
-        for (int i = 0; i < tasks.size(); i++) {
-            String status = isComplete.get(i) ? "✅" : "❌";
-            Output.println(status + " " + (i + 1) + ". " + tasks.get(i));
-        }
-    }
+    public String markComplete(int taskNumber) {
+        int index = taskNumber - 1;
+        if (index >= 0 && index < tasks.size()) {
+            // Toggle the status based on current state
+            boolean currentState = isComplete.get(index);
 
-    // ------------------- ADMIN FEATURES -------------------
+            isComplete.set(index, !currentState);
 
-    // Admin can view all users' To-Do lists
-    public static void viewAllUsersTasks() {
-        File dir = new File(".");
-        File[] files = dir.listFiles((d, name) -> name.startsWith("todo_") && name.endsWith(".txt"));
-        if (files == null || files.length == 0) {
-            Output.println("No user To-Do lists found.");
-            return;
-        }
-
-        for (File f : files) {
-            String username = f.getName().replace("todo_", "").replace(".txt", "");
-            ToDoListManager userList = new ToDoListManager(username);
-            userList.viewTasks();
+            if (saveTasks()) {
+                if (!currentState) {
+                    return "Task marked complete: " + tasks.get(index);
+                } else {
+                    return "Task marked incomplete: " + tasks.get(index);
+                }
+            } else {
+                isComplete.set(index, currentState); // Revert in memory
+                return "Task status changed in memory, but failed to update file.";
+            }
+        } else {
+            return "Invalid task number.";
         }
     }
 
-    // Admin can remove a task from any user's list
-    public static boolean removeTaskForUser(String username, int taskNumber) {
-        ToDoListManager userList = new ToDoListManager(username);
-        return userList.removeTask(taskNumber);
+    // --- ACCESSOR METHODS ADDED FOR JAVAFX CONTROLLER ---
+
+    /** Returns the raw list of task descriptions (used by Controller to build TaskItem). */
+    public List<String> getTaskDescriptions() {
+        return this.tasks;
     }
 
-    // Admin can mark task complete for any user
-    public static boolean markCompleteForUser(String username, int taskNumber) {
-        ToDoListManager userList = new ToDoListManager(username);
-        return userList.markComplete(taskNumber);
+    /** Returns the raw list of completion statuses (used by Controller to build TaskItem). */
+    public List<Boolean> getTaskCompletionStatus() {
+        return this.isComplete;
     }
 
+    // NOTE: Old getTasks() method is redundant but kept for completeness
+    // public List<String> getTasks() { ... }
 }

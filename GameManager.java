@@ -1,4 +1,4 @@
-package ProjectPhase1;
+package com.example.backup;
 
 import java.util.Arrays;
 import java.io.File;
@@ -7,14 +7,13 @@ import java.util.Scanner;
 
 public class GameManager {
 
-    // --- ALL LEVEL DATA ---
     protected static final String[][] ALL_LEVEL_DATA = {
             {"SERU", "sure", "sue", "use", "rue", "user"},
-            {"SLTA", "salt", "last", "sat", "at"},
+            {"SLTA", "salt", "last", "sat", "at","as"},
             {"ITDE", "tide", "tie", "diet", "edit", "tied", "die"},
             {"ASLNO", "also", "son", "loan", "loans", "salon"},
             {"EMRST", "terms", "term", "stem", "rest", "set", "met"},
-            {"KLCAB", "black", "lack", "back", "lab", "cab"},
+            {"RWOGN", "wrong", "grown", "now", "row", "own","won","worn","grow"},
             {"ELAD", "deal", "lead", "led", "lad", "ale"},
             {"SOWNK", "know", "knows", "own", "son", "now", "snow", "won", "owns"},
             {"ERLA", "real", "earl", "ear", "are", "ale"},
@@ -104,18 +103,28 @@ public class GameManager {
             return availableLetters;
         }
 
-        public void displayProgress(int levelNum) {
-            Output.println("\n--- Level " + levelNum + " Progress ---");
+        public String[] getTargetWords() {
+            return targetWords;
+        }
+
+        public boolean[] getFoundStatus() {
+            return foundStatus;
+        }
+
+        public String getProgressDisplay(int levelNum) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("\n--- Level ").append(levelNum).append(" Progress ---\n");
             for (int i = 0; i < targetWords.length; i++) {
                 String word = targetWords[i].toUpperCase();
-                if (foundStatus[i]) Output.print("[" + word + "] ");
-                else Output.print("[" + "_".repeat(word.length()) + "] ");
+                if (foundStatus[i]) sb.append("[").append(word).append("] ");
+                else sb.append("[").append("_".repeat(word.length())).append("] ");
             }
-            Output.println("\n--------------------------");
+            sb.append("\n--------------------------\n");
 
-            Output.print("Available Letters: ");
-            for (char c : availableLetters.toCharArray()) System.out.print("[" + c + "] ");
-            Output.println("");
+            sb.append("Available Letters: ");
+            for (char c : availableLetters.toCharArray()) sb.append("[").append(c).append("] ");
+            sb.append("\n");
+            return sb.toString();
         }
     }
 
@@ -130,66 +139,49 @@ public class GameManager {
         return new Level(letters, words);
     }
 
-    // --- PROCESS INPUT ---
     public static int processInput(Level current, String input) {
-        if (current == null || input == null) return -1;
+        if (current == null || input == null) return -2;
 
         String trimmedInput = input.trim();
         if (trimmedInput.equalsIgnoreCase("BACK")) return -1;
 
         int result = current.checkWord(trimmedInput);
 
-        switch (result) {
-            case 0 -> {
-                Output.println("✅ Correct word: " + trimmedInput);
-                if (current.isComplete()) System.out.println("\n*** LEVEL COMPLETE! ***");
-            }
-            case 1 -> Output.println("Already found that word!");
-            case 2 -> Output.println("Not a target word.");
-            case 3 -> Output.println("Invalid letters used!");
-        }
-
         return result;
     }
 
-    // --- START LEVEL ---
     public static Level startLevel(int levelNum) {
         Level currentLevel = loadLevel(levelNum);
         if (currentLevel == null) {
-            Output.printf("Could not load level %d.%n", levelNum);
+            System.err.printf("Could not load level %d.%n", levelNum);
             return null;
         }
-
-        Output.printf("%n--- Starting Word Game Level %d ---%n", levelNum);
-        Output.printf("Find %d words using the letters: %s%n",
-                currentLevel.getTotalCount(), currentLevel.getAvailableLetters());
-        Output.println("Type 'BACK' to exit.");
-
         return currentLevel;
     }
 
-    // --- PROGRESS MANAGER ---
     public static class ProgressManager {
-        private static final String FILE_NAME = "progress.txt";
+        private static final String FILE_NAME_TEMPLATE = "progress_%s.txt";
 
-        public static int loadProgress() {
+        public static int loadProgress(String username) {
+            String fileName = String.format(FILE_NAME_TEMPLATE, username);
             try {
-                File file = new File(FILE_NAME);
+                File file = new File(fileName);
                 if (!file.exists()) return 1;
 
                 Scanner sc = new Scanner(file);
                 if (sc.hasNextInt()) return sc.nextInt();
             } catch (Exception e) {
-                Output.println("Error loading progress: " + e.getMessage());
+                System.err.println("Error loading progress for " + username + ": " + e.getMessage());
             }
             return 1;
         }
 
-        public static void saveProgress(int level) {
-            try (PrintWriter pw = new PrintWriter(FILE_NAME)) {
+        public static void saveProgress(String username, int level) {
+            String fileName = String.format(FILE_NAME_TEMPLATE, username);
+            try (PrintWriter pw = new PrintWriter(fileName)) {
                 pw.println(level);
             } catch (Exception e) {
-                Output.println("Error saving progress: " + e.getMessage());
+                System.err.println("Error saving progress for " + username + ": " + e.getMessage());
             }
         }
     }

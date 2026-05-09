@@ -1,114 +1,111 @@
-package ProjectPhase1;
+package com.example.backup;
 
 import java.io.*;
 import java.util.*;
 
 public class QuoteGenerator {
 
-    private List<String> quotes;
-    private final Random random;
-    private static final String FILE_NAME = "quotes.txt";
-    private final boolean isAdmin; // flag to differentiate admin and normal user
+    private static final String FILE_PREFIX = "quotes_";
+    private final List<Quote> quotes;
+    private final String username;
 
-    public QuoteGenerator(boolean isAdmin) {
-        this.isAdmin = isAdmin;
-        random = new Random();
-        quotes = new ArrayList<>();
+    /**
+     * Constructor initializes the QuoteGenerator and loads existing quotes from file.
+     * @param user The currently logged-in User.
+     */
+    public QuoteGenerator(User user) {
+        this.username = user.getUsername();
+        this.quotes = new ArrayList<>();
         loadQuotes();
+
+        // Ensure at least one default quote exists if the file is empty
+        if (quotes.isEmpty()) {
+            addDefaultQuote();
+        }
     }
 
-    // ================= LOAD QUOTES =================
+    private String getFileName() {
+        return FILE_PREFIX + username + ".txt";
+    }
+
+    private void addDefaultQuote() {
+        // This is a failsafe to ensure getRandomQuote doesn't crash on an empty file.
+        quotes.add(new Quote("The best way to predict the future is to create it.", "Peter Drucker"));
+    }
+
+    // --- Persistence Methods ---
+
     private void loadQuotes() {
-        File file = new File(FILE_NAME);
-        if (!file.exists()) {
-            // If file doesn't exist, create an empty one
-            try {
-                file.createNewFile();
-            } catch (IOException e) {
-                Output.println("Error creating quotes file: " + e.getMessage());
-            }
-            return;
-        }
+        File file = new File(getFileName());
+        if (!file.exists()) return;
 
         try (BufferedReader br = new BufferedReader(new FileReader(file))) {
             String line;
-            // Read all lines, ignore empty ones
             while ((line = br.readLine()) != null) {
-                if (!line.trim().isEmpty()) {
-                    quotes.add(line.trim());
+                // File format: QuoteText::Author
+                String[] parts = line.split("::", 2);
+                if (parts.length == 2) {
+                    quotes.add(new Quote(parts[0], parts[1]));
                 }
             }
         } catch (IOException e) {
-            Output.println("Error loading quotes: " + e.getMessage());
+            System.err.println("Error loading quotes for user " + username + ": " + e.getMessage());
         }
     }
 
-    // ================= SAVE QUOTES =================
-    private void saveQuotes() {
-        try (BufferedWriter bw = new BufferedWriter(new FileWriter(FILE_NAME))) {
-            for (String quote : quotes) {
-                bw.write(quote);
-                bw.newLine();
+    private boolean saveQuotes() {
+        try (BufferedWriter bw = new BufferedWriter(new FileWriter(getFileName()))) {
+            for (Quote quote : quotes) {
+                // Save format: QuoteText::Author
+                bw.write(quote.getQuoteText() + "::" + quote.getAuthor() + "\n");
             }
+            return true;
         } catch (IOException e) {
-            Output.println("Error saving quotes: " + e.getMessage());
+            System.err.println("Error saving quotes for user " + username + ": " + e.getMessage());
+            return false;
         }
     }
 
-    // ================= ADD QUOTE (ADMIN ONLY) =================
-    public void addQuote(String quote) {
-        if (!isAdmin) {
-            Output.println("Access Denied: Only Admin can add quotes.");
-            return;
-        }
+    // --- Core Logic Methods ---
 
-        if (quote == null || quote.trim().isEmpty()) {
-            Output.println("Quote cannot be empty.");
-            return;
+    public Quote getRandomQuote() {
+        if (quotes.isEmpty()) {
+            // Should not happen if addDefaultQuote runs, but safe check anyway
+            return null;
         }
-
-        quotes.add(quote.trim());
-        saveQuotes();
-        Output.println("Quote added successfully!");
+        Random rand = new Random();
+        return quotes.get(rand.nextInt(quotes.size()));
     }
 
-    // ================= DELETE QUOTE (ADMIN ONLY) =================
-    public void deleteQuote(int index) {
-        if (!isAdmin) {
-            Output.println("Access Denied: Only Admin can delete quotes.");
-            return;
+    public List<Quote> getAllQuotes() {
+        return Collections.unmodifiableList(quotes); // Return read-only list
+    }
+
+    public String addQuote(String text, String author) {
+        if (text == null || text.trim().isEmpty()) {
+            return "Quote text cannot be empty.";
+        }
+        if (author == null || author.trim().isEmpty()) {
+            author = "Unknown"; // Default author if not provided
         }
 
-        int realIndex = index - 1; // user sees 1-based indexing
-        if (realIndex >= 0 && realIndex < quotes.size()) {
-            String removedQuote = quotes.remove(realIndex);
-            saveQuotes();
-            Output.println("Quote deleted: \"" + removedQuote + "\"");
+        Quote newQuote = new Quote(text.trim(), author.trim());
+        quotes.add(newQuote);
+
+        if (saveQuotes()) {
+            return "Quote successfully added!";
         } else {
-            Output.println("Invalid quote number.");
+            // Revert changes if save fails
+            quotes.remove(newQuote);
+            return "Error saving quote to file.";
         }
     }
 
-    // ================= SHOW RANDOM QUOTE =================
-    public void showRandomQuote() {
-        if (quotes.isEmpty()) {
-            Output.println("No quotes available!");
-            return;
+    // Optional: Method to remove a quote (useful for CRUD)
+    public boolean removeQuote(Quote quote) {
+        if (quotes.remove(quote)) {
+            return saveQuotes();
         }
-        int idx = random.nextInt(quotes.size());
-        Output.println("\nQuote of the Day:");
-        Output.println("\"" + quotes.get(idx) + "\"");
-    }
-
-    // ================= SHOW ALL QUOTES =================
-    public void showAllQuotes() {
-        Output.println("\n=== All Available Quotes (" + quotes.size() + ") ===");
-        if (quotes.isEmpty()) {
-            Output.println("No quotes available.");
-            return;
-        }
-        for (int i = 0; i < quotes.size(); i++) {
-            Output.println((i + 1) + ". " + quotes.get(i));
-        }
+        return false;
     }
 }
