@@ -14,4 +14,3 @@ public class Output{
         System.out.printf(format,args);
     }
 }
-
